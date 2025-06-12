@@ -1,0 +1,292 @@
+/* LLM DriftGuard Custom Styles */
+
+/* Dashboard styling */
+.dashboard-body {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+}
+
+/* Panel enhancements */
+.dashboard-panel {
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+}
+
+.panel-title {
+    font-weight: 600;
+    color: #2c3e50;
+    border-bottom: 2px solid #3498db;
+    padding-bottom: 8px;
+}
+
+/* Status indicators */
+.health-status {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-weight: bold;
+    text-transform: uppercase;
+    font-size: 0.85em;
+}
+
+.health-excellent {
+    background-color: #27ae60;
+    color: white;
+}
+
+.health-good {
+    background-color: #f39c12;
+    color: white;
+}
+
+.health-fair {
+    background-color: #e67e22;
+    color: white;
+}
+
+.health-poor {
+    background-color: #e74c3c;
+    color: white;
+}
+
+/* Drift score indicators */
+.drift-minimal {
+    color: #27ae60;
+    font-weight: bold;
+}
+
+.drift-low {
+    color: #f1c40f;
+    font-weight: bold;
+}
+
+.drift-medium {
+    color: #e67e22;
+    font-weight: bold;
+}
+
+.drift-high {
+    color: #e74c3c;
+    font-weight: bold;
+}
+
+.drift-critical {
+    color: #c0392b;
+    font-weight: bold;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
+}
+
+/* Metric cards */
+.metric-card {
+    background: white;
+    border-radius: 8px;
+    padding: 16px;
+    margin: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    border-left: 4px solid #3498db;
+}
+
+.metric-value {
+    font-size: 2em;
+    font-weight: bold;
+    color: #2c3e50;
+    margin-bottom: 4px;
+}
+
+.metric-label {
+    color: #7f8c8d;
+    font-size: 0.9em;
+    text-transform: uppercase;
+}
+
+.metric-trend {
+    font-size: 0.8em;
+    margin-top: 4px;
+}
+
+.trend-up {
+    color: #e74c3c;
+}
+
+.trend-down {
+    color: #27ae60;
+}
+
+.trend-stable {
+    color: #95a5a6;
+}
+
+/* Alert styling */
+.alert-high {
+    background-color: #ffeaa7;
+    border-left: 4px solid #fdcb6e;
+    padding: 12px;
+    margin: 8px 0;
+    border-radius: 4px;
+}
+
+.alert-critical {
+    background-color: #fab1a0;
+    border-left: 4px solid #e17055;
+    padding: 12px;
+    margin: 8px 0;
+    border-radius: 4px;
+}
+
+/* Table enhancements */
+.drift-table {
+    border-collapse: collapse;
+    width: 100%;
+}
+
+.drift-table th {
+    background-color: #34495e;
+    color: white;
+    padding: 12px;
+    text-align: left;
+}
+
+.drift-table td {
+    padding: 10px;
+    border-bottom: 1px solid #ecf0f1;
+}
+
+.drift-table tr:hover {
+    background-color: #f8f9fa;
+}
+
+/* Chart customizations */
+.chart-container {
+    background: white;
+    border-radius: 8px;
+    padding: 16px;
+    margin: 8px 0;
+}
+
+/* Model performance indicators */
+.model-excellent {
+    background: linear-gradient(45deg, #27ae60, #2ecc71);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.model-good {
+    background: linear-gradient(45deg, #f39c12, #f1c40f);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.model-acceptable {
+    background: linear-gradient(45deg, #e67e22, #d35400);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.model-poor {
+    background: linear-gradient(45deg, #e74c3c, #c0392b);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .metric-card {
+        margin: 4px 0;
+    }
+    
+    .metric-value {
+        font-size: 1.5em;
+    }
+    
+    .dashboard-panel {
+        margin-bottom: 12px;
+    }
+}
+
+/* Loading animations */
+.loading-spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #3498db;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 2s linear infinite;
+    margin: 20px auto;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Custom form styling */
+.search-form {
+    background: white;
+    padding: 16px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.form-input {
+    margin: 8px;
+    padding: 8px 12px;
+    border: 1px solid #bdc3c7;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.form-button {
+    background: #3498db;
+    color: white;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    margin: 8px;
+}
+
+.form-button:hover {
+    background: #2980b9;
+}
+
+/* Accessibility improvements */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Print styles */
+@media print {
+    .dashboard-body {
+        background: white;
+    }
+    
+    .metric-card {
+        border: 1px solid #ccc;
+        box-shadow: none;
+    }
+    
+    .chart-container {
+        border: 1px solid #ccc;
+    }
+}
