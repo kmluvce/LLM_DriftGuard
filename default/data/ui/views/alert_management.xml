@@ -1,0 +1,287 @@
+<form>
+  <label>Alert Management</label>
+  <description>Configure and monitor LLM drift detection alerts and thresholds</description>
+  
+  <fieldset submitButton="true" autoRun="true">
+    <input type="time" token="time_token">
+      <label>Time Range</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+    <input type="dropdown" token="alert_severity">
+      <label>Alert Severity</label>
+      <choice value="*">All Severities</choice>
+      <choice value="critical">Critical</choice>
+      <choice value="warning">Warning</choice>
+      <choice value="info">Info</choice>
+      <default>*</default>
+    </input>
+  </fieldset>
+  
+  <row>
+    <panel>
+      <title>Alert Status Overview</title>
+      <single>
+        <search>
+          <query>
+            index=_internal source="*scheduler.log" savedsearch_name="LLM*Alert*" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | rex field=_raw "result_count=(?&lt;result_count&gt;\d+)"
+            | where result_count > 0
+            | stats count as active_alerts
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="colorMode">block</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    
+    <panel>
+      <title>Critical Alerts</title>
+      <single>
+        <search>
+          <query>
+            index=llm_logs earliest=$time_token.earliest$ latest=$time_token.latest$
+            | baselinecompare metric=response_time baseline_file="model_baselines.csv"
+            | where baseline_comparison_status="critical"
+            | stats count as critical_count
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="colorMode">block</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    
+    <panel>
+      <title>Models with Issues</title>
+      <single>
+        <search>
+          <query>
+            index=llm_logs earliest=$time_token.earliest$ latest=$time_token.latest$
+            | driftdetect field=response baseline_file="model_baselines.csv"
+            | where drift_detected=true OR baseline_comparison_status!="normal"
+            | stats dc(model_id) as affected_models
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+      </single>
+    </panel>
+    
+    <panel>
+      <title>Alert Frequency</title>
+      <single>
+        <search>
+          <query>
+            index=_internal source="*scheduler.log" savedsearch_name="LLM*Alert*" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | rex field=_raw "result_count=(?&lt;result_count&gt;\d+)"
+            | where result_count > 0
+            | bucket _time span=1h
+            | stats count as alerts_per_hour by _time
+            | stats avg(alerts_per_hour) as avg_alerts_per_hour
+            | eval avg_alerts_per_hour = round(avg_alerts_per_hour, 1)
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+      </single>
+    </panel>
+  </row>
+  
+  <row>
+    <panel>
+      <title>Alert Timeline</title>
+      <chart>
+        <search>
+          <query>
+            index=_internal source="*scheduler.log" savedsearch_name="LLM*Alert*" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | rex field=_raw "savedsearch_name=\"(?&lt;alert_name&gt;[^\"]+)\""
+            | rex field=_raw "result_count=(?&lt;result_count&gt;\d+)"
+            | where result_count > 0
+            | bucket _time span=1h
+            | stats count as alert_count by _time, alert_name
+            | sort _time
+          </query>
+        </search>
+        <option name="charting.chart">column</option>
+        <option name="charting.axisTitleX.text">Time</option>
+        <option name="charting.axisTitleY.text">Alert Count</option>
+        <option name="charting.chart.stackMode">stacked</option>
+        <option name="charting.legend.placement">bottom</option>
+      </chart>
+    </panel>
+    
+    <panel>
+      <title>Alert Type Distribution</title>
+      <chart>
+        <search>
+          <query>
+            index=_internal source="*scheduler.log" savedsearch_name="LLM*Alert*" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | rex field=_raw "savedsearch_name=\"(?&lt;alert_name&gt;[^\"]+)\""
+            | rex field=_raw "result_count=(?&lt;result_count&gt;\d+)"
+            | where result_count > 0
+            | stats count by alert_name
+            | sort - count
+          </query>
+        </search>
+        <option name="charting.chart">pie</option>
+        <option name="charting.legend.placement">right</option>
+      </chart>
+    </panel>
+  </row>
+  
+  <row>
+    <panel>
+      <title>Drift Detection Alerts</title>
+      <table>
+        <search>
+          <query>
+            index=llm_logs earliest=$time_token.earliest$ latest=$time_token.latest$
+            | driftdetect field=response baseline_file="model_baselines.csv"
+            | where drift_detected=true
+            | eval alert_time = strftime(_time, "%Y-%m-%d %H:%M:%S")
+            | eval drift_score = round(drift_score, 3)
+            | eval alert_severity = case(
+                drift_score > 0.7, "critical",
+                drift_score > 0.5, "warning",
+                1=1, "info"
+              )
+            | where alert_severity="$alert_severity$" OR "$alert_severity$"="*"
+            | table alert_time, model_id, drift_score, drift_severity, alert_severity
+            | sort - drift_score
+          </query>
+        </search>
+        <option name="drilldown">cell</option>
+        <option name="count">15</option>
+      </table>
+    </panel>
+  </row>
+  
+  <row>
+    <panel>
+      <title>Performance Degradation Alerts</title>
+      <table>
+        <search>
+          <query>
+            index=llm_logs earliest=$time_token.earliest$ latest=$time_token.latest$
+            | baselinecompare metric=response_time baseline_file="model_baselines.csv"
+            | where baseline_comparison_status!="normal"
+            | eval alert_time = strftime(_time, "%Y-%m-%d %H:%M:%S")
+            | eval percentage_change = round(baseline_percentage_change, 1)
+            | where baseline_comparison_status="$alert_severity$" OR "$alert_severity$"="*"
+            | table alert_time, model_id, baseline_comparison_status, percentage_change, baseline_current_value, baseline_reference_value
+            | sort - percentage_change
+          </query>
+        </search>
+        <option name="drilldown">cell</option>
+        <option name="count">15</option>
+      </table>
+    </panel>
+  </row>
+  
+  <row>
+    <panel>
+      <title>Current Alert Thresholds</title>
+      <table>
+        <search>
+          <query>
+            | inputlookup alert_thresholds.csv
+            | table metric_name, threshold_type, warning_threshold, critical_threshold, unit, description
+            | sort metric_name
+          </query>
+        </search>
+        <option name="drilldown">cell</option>
+        <option name="count">20</option>
+        <option name="wrap">true</option>
+      </table>
+    </panel>
+    
+    <panel>
+      <title>Model Baselines</title>
+      <table>
+        <search>
+          <query>
+            | inputlookup model_baselines.csv
+            | eval avg_response_time = round(avg_response_time, 2)
+            | eval avg_confidence = round(avg_confidence, 3)
+            | table model_id, avg_response_time, avg_token_count, avg_confidence, baseline_date, sample_count
+            | sort model_id
+          </query>
+        </search>
+        <option name="drilldown">cell</option>
+        <option name="count">10</option>
+      </table>
+    </panel>
+  </row>
+  
+  <row>
+    <panel>
+      <title>Alert Configuration Actions</title>
+      <html>
+        <div style="padding: 20px;">
+          <h3>Alert Management Actions</h3>
+          
+          <div style="margin-bottom: 20px;">
+            <h4>Quick Actions:</h4>
+            <p>
+              <a href="/manager/llm_driftguard/saved/searches" target="_blank" class="btn btn-primary">
+                Manage Saved Searches & Alerts
+              </a>
+            </p>
+            <p>
+              <a href="/manager/llm_driftguard/data/lookup-table-files" target="_blank" class="btn btn-secondary">
+                Update Lookup Tables
+              </a>
+            </p>
+          </div>
+          
+          <div style="margin-bottom: 20px;">
+            <h4>Threshold Configuration:</h4>
+            <p>Edit <code>alert_thresholds.csv</code> to modify warning and critical thresholds for different metrics.</p>
+            <p>Supported threshold types: <strong>upper</strong> (higher is worse), <strong>lower</strong> (lower is worse)</p>
+          </div>
+          
+          <div style="margin-bottom: 20px;">
+            <h4>Baseline Management:</h4>
+            <p>Baselines are automatically updated daily using the "LLM Baseline Calculator" saved search.</p>
+            <p>Manual baseline update: Run the saved search or upload a new <code>model_baselines.csv</code> file.</p>
+          </div>
+          
+          <div>
+            <h4>Alert Escalation:</h4>
+            <ul>
+              <li><strong>Info:</strong> Drift score 0.3-0.5 or minor performance changes</li>
+              <li><strong>Warning:</strong> Drift score 0.5-0.7 or 25-50% performance degradation</li>
+              <li><strong>Critical:</strong> Drift score >0.7 or >50% performance degradation</li>
+            </ul>
+          </div>
+        </div>
+      </html>
+    </panel>
+  </row>
+  
+  <row>
+    <panel>
+      <title>Recent Alert Activity</title>
+      <table>
+        <search>
+          <query>
+            index=_internal source="*scheduler.log" savedsearch_name="LLM*Alert*" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | rex field=_raw "savedsearch_name=\"(?&lt;alert_name&gt;[^\"]+)\""
+            | rex field=_raw "result_count=(?&lt;result_count&gt;\d+)"
+            | rex field=_raw "run_time=(?&lt;run_time&gt;[0-9\.]+)"
+            | eval alert_time = strftime(_time, "%Y-%m-%d %H:%M:%S")
+            | eval status = if(result_count > 0, "TRIGGERED", "OK")
+            | eval run_time = round(run_time, 2)." sec"
+            | table alert_time, alert_name, status, result_count, run_time
+            | sort - _time
+          </query>
+        </search>
+        <option name="drilldown">cell</option>
+        <option name="count">20</option>
+        <option name="wrap">true</option>
+      </table>
+    </panel>
+  </row>
+</form>
