@@ -1,0 +1,11 @@
+prompt_type,category,description,expected_drift_threshold
+question_answering,factual,"Direct factual questions requiring specific answers",0.2
+creative_writing,creative,"Creative content generation tasks",0.5
+code_generation,technical,"Programming and code-related requests",0.3
+data_analysis,analytical,"Data interpretation and analysis tasks",0.25
+conversational,dialogue,"General conversation and chat interactions",0.4
+summarization,summarization,"Text summarization and condensation tasks",0.3
+translation,translation,"Language translation requests",0.2
+explanation,educational,"Explanatory and educational content",0.35
+problem_solving,reasoning,"Complex problem-solving scenarios",0.4
+email_writing,communication,"Professional communication drafting",0.3
