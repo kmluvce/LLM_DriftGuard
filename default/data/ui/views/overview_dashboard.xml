@@ -1,0 +1,236 @@
+<form>
+  <label>LLM DriftGuard - Overview Dashboard</label>
+  <description>Real-time monitoring of LLM semantic drift and performance metrics</description>
+  
+  <fieldset submitButton="true" autoRun="true">
+    <input type="time" token="time_token">
+      <label>Time Range</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+    <input type="dropdown" token="model_token">
+      <label>Model</label>
+      <choice value="*">All Models</choice>
+      <default>*</default>
+      <search>
+        <query>
+          index=llm_logs | dedup model_id | table model_id
+        </query>
+      </search>
+      <fieldForLabel>model_id</fieldForLabel>
+      <fieldForValue>model_id</fieldForValue>
+    </input>
+  </fieldset>
+  
+  <row>
+    <panel>
+      <title>System Health Status</title>
+      <single>
+        <search>
+          <query>
+            index=llm_logs model_id="$model_token$" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | stats count as total_requests, 
+                    avg(response_time) as avg_response_time,
+                    avg(confidence_score) as avg_confidence
+            | eval health_score = case(
+                avg_response_time < 2 AND avg_confidence > 0.8, "Excellent",
+                avg_response_time < 5 AND avg_confidence > 0.6, "Good", 
+                avg_response_time < 10 AND avg_confidence > 0.4, "Fair",
+                1=1, "Poor"
+              )
+            | eval health_color = case(
+                health_score="Excellent", "green",
+                health_score="Good", "yellow",
+                health_score="Fair", "orange",
+                1=1, "red"
+              )
+            | table health_score, health_color
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="colorMode">block</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    
+    <panel>
+      <title>Total Requests</title>
+      <single>
+        <search>
+          <query>
+            index=llm_logs model_id="$model_token$" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | stats count
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="numberPrecision">0</option>
+      </single>
+    </panel>
+    
+    <panel>
+      <title>Average Response Time</title>
+      <single>
+        <search>
+          <query>
+            index=llm_logs model_id="$model_token$" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | stats avg(response_time) as avg_response_time
+            | eval avg_response_time = round(avg_response_time, 2)." sec"
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+      </single>
+    </panel>
+    
+    <panel>
+      <title>Drift Score</title>
+      <single>
+        <search>
+          <query>
+            index=llm_logs model_id="$model_token$" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | driftdetect field=response baseline_file="model_baselines.csv"
+            | stats avg(drift_score) as avg_drift
+            | eval avg_drift = round(avg_drift, 3)
+            | eval drift_status = case(
+                avg_drift < 0.1, "Stable",
+                avg_drift < 0.3, "Minor Drift", 
+                avg_drift < 0.5, "Moderate Drift",
+                1=1, "High Drift"
+              )
+            | table drift_status
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="colorMode">block</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+  </row>
+  
+  <row>
+    <panel>
+      <title>Response Time Trend</title>
+      <chart>
+        <search>
+          <query>
+            index=llm_logs model_id="$model_token$" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | bucket _time span=1h
+            | stats avg(response_time) as avg_response_time by _time
+            | sort _time
+          </query>
+        </search>
+        <option name="charting.chart">line</option>
+        <option name="charting.axisTitleX.text">Time</option>
+        <option name="charting.axisTitleY.text">Response Time (seconds)</option>
+        <option name="charting.legend.placement">bottom</option>
+      </chart>
+    </panel>
+    
+    <panel>
+      <title>Confidence Score Distribution</title>
+      <chart>
+        <search>
+          <query>
+            index=llm_logs model_id="$model_token$" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | eval confidence_bucket = case(
+                confidence_score >= 0.9, "0.9-1.0",
+                confidence_score >= 0.8, "0.8-0.9",
+                confidence_score >= 0.7, "0.7-0.8",
+                confidence_score >= 0.6, "0.6-0.7",
+                1=1, "< 0.6"
+              )
+            | stats count by confidence_bucket
+            | sort confidence_bucket
+          </query>
+        </search>
+        <option name="charting.chart">pie</option>
+        <option name="charting.legend.placement">right</option>
+      </chart>
+    </panel>
+  </row>
+  
+  <row>
+    <panel>
+      <title>Semantic Drift Over Time</title>
+      <chart>
+        <search>
+          <query>
+            index=llm_logs model_id="$model_token$" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | bucket _time span=1h
+            | driftdetect field=response baseline_file="model_baselines.csv"
+            | stats avg(drift_score) as avg_drift by _time
+            | sort _time
+          </query>
+        </search>
+        <option name="charting.chart">line</option>
+        <option name="charting.axisTitleX.text">Time</option>
+        <option name="charting.axisTitleY.text">Drift Score</option>
+        <option name="charting.chart.nullValueMode">connect</option>
+      </chart>
+    </panel>
+    
+    <panel>
+      <title>Model Performance by Type</title>
+      <chart>
+        <search>
+          <query>
+            index=llm_logs model_id="$model_token$" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | stats avg(response_time) as avg_response_time, 
+                    avg(confidence_score) as avg_confidence,
+                    count as request_count by model_id
+            | eval performance_score = (avg_confidence * 100) - (avg_response_time * 10)
+            | sort - performance_score
+          </query>
+        </search>
+        <option name="charting.chart">column</option>
+        <option name="charting.axisTitleX.text">Model</option>
+        <option name="charting.axisTitleY.text">Performance Score</option>
+      </chart>
+    </panel>
+  </row>
+  
+  <row>
+    <panel>
+      <title>Recent Alerts</title>
+      <table>
+        <search>
+          <query>
+            index=_internal source="*scheduler.log" savedsearch_name="LLM*Alert*" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | rex field=_raw "savedsearch_name=\"(?&lt;alert_name&gt;[^\"]+)\""
+            | rex field=_raw "result_count=(?&lt;result_count&gt;\d+)"
+            | where result_count > 0
+            | eval alert_time = strftime(_time, "%Y-%m-%d %H:%M:%S")
+            | table alert_time, alert_name, result_count
+            | sort - _time
+            | head 10
+          </query>
+        </search>
+        <option name="drilldown">cell</option>
+        <option name="count">10</option>
+      </table>
+    </panel>
+    
+    <panel>
+      <title>Top Error Patterns</title>
+      <table>
+        <search>
+          <query>
+            index=llm_logs model_id="$model_token$" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | where isnotnull(error) OR response_time > 10 OR confidence_score < 0.3
+            | eval error_type = case(
+                isnotnull(error), "API Error",
+                response_time > 10, "Timeout",
+                confidence_score < 0.3, "Low Confidence",
+                1=1, "Other"
+              )
+            | stats count by error_type, model_id
+            | sort - count
+          </query>
+        </search>
+        <option name="drilldown">cell</option>
+        <option name="count">10</option>
+      </table>
+    </panel>
+  </row>
+</form>
