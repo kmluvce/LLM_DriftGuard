@@ -1,0 +1,7 @@
+drift_score_range,drift_category,severity_level,action_required,description
+0.0-0.1,minimal,1,none,"No significant drift detected - normal operation"
+0.1-0.2,low,2,monitor,"Minor drift detected - continue monitoring"
+0.2-0.3,moderate,3,investigate,"Moderate drift detected - investigate potential causes"
+0.3-0.5,high,4,alert,"High drift detected - immediate attention required"
+0.5-0.7,very_high,5,escalate,"Very high drift - escalate to development team"
+0.7-1.0,critical,6,immediate,"Critical drift detected - immediate intervention required"
