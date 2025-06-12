@@ -1,0 +1,292 @@
+<form>
+  <label>Anomaly Detection</label>
+  <description>Statistical anomaly detection and analysis for LLM behavior patterns</description>
+  
+  <fieldset submitButton="true" autoRun="true">
+    <input type="time" token="time_token">
+      <label>Time Range</label>
+      <default>
+        <earliest>-4h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+    <input type="dropdown" token="model_token">
+      <label>Model</label>
+      <choice value="*">All Models</choice>
+      <default>*</default>
+      <search>
+        <query>index=llm_logs | dedup model_id | table model_id</query>
+      </search>
+      <fieldForLabel>model_id</fieldForLabel>
+      <fieldForValue>model_id</fieldForValue>
+    </input>
+    <input type="dropdown" token="detection_method">
+      <label>Detection Method</label>
+      <choice value="zscore">Z-Score</choice>
+      <choice value="iqr">Interquartile Range</choice>
+      <choice value="isolation">Isolation Forest</choice>
+      <choice value="trend">Trend Analysis</choice>
+      <choice value="all">All Methods</choice>
+      <default>zscore</default>
+    </input>
+    <input type="text" token="threshold_token">
+      <label>Detection Threshold</label>
+      <default>2.0</default>
+    </input>
+  </fieldset>
+  
+  <row>
+    <panel>
+      <title>Anomaly Detection Summary</title>
+      <single>
+        <search>
+          <query>
+            index=llm_logs model_id="$model_token$" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | anomalydetect fields="response_time,token_count,confidence_score" method=$detection_method$ threshold=$threshold_token$
+            | stats count(eval(anomaly_detected=true)) as total_anomalies,
+                    count as total_events
+            | eval anomaly_rate = round((total_anomalies / total_events) * 100, 2)
+            | eval display_value = anomaly_rate." % (".total_anomalies." of ".total_events.")"
+            | table display_value
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="colorMode">block</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    
+    <panel>
+      <title>High Severity Anomalies</title>
+      <single>
+        <search>
+          <query>
+            index=llm_logs model_id="$model_token$" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | anomalydetect fields="response_time,token_count,confidence_score" method=$detection_method$ threshold=$threshold_token$
+            | where anomaly_severity="high" OR anomaly_severity="critical"
+            | stats count
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="colorMode">block</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    
+    <panel>
+      <title>Most Affected Model</title>
+      <single>
+        <search>
+          <query>
+            index=llm_logs model_id="$model_token$" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | anomalydetect fields="response_time,token_count,confidence_score" method=$detection_method$ threshold=$threshold_token$
+            | where anomaly_detected=true
+            | stats count as anomaly_count by model_id
+            | sort - anomaly_count
+            | head 1
+            | eval display = model_id." (".anomaly_count." anomalies)"
+            | table display
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+      </single>
+    </panel>
+    
+    <panel>
+      <title>Average Anomaly Score</title>
+      <single>
+        <search>
+          <query>
+            index=llm_logs model_id="$model_token$" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | anomalydetect fields="response_time,token_count,confidence_score" method=$detection_method$ threshold=$threshold_token$
+            | where anomaly_detected=true
+            | stats avg(max_anomaly_score) as avg_score
+            | eval avg_score = round(avg_score, 2)
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+      </single>
+    </panel>
+  </row>
+  
+  <row>
+    <panel>
+      <title>Anomalies Over Time</title>
+      <chart>
+        <search>
+          <query>
+            index=llm_logs model_id="$model_token$" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | anomalydetect fields="response_time,token_count,confidence_score" method=$detection_method$ threshold=$threshold_token$
+            | bucket _time span=15m
+            | stats count(eval(anomaly_detected=true)) as anomalies,
+                    count as total_events by _time, anomaly_severity
+            | fillnull value=0 anomalies
+            | sort _time
+          </query>
+        </search>
+        <option name="charting.chart">column</option>
+        <option name="charting.axisTitleX.text">Time</option>
+        <option name="charting.axisTitleY.text">Number of Anomalies</option>
+        <option name="charting.chart.stackMode">stacked</option>
+        <option name="charting.legend.placement">bottom</option>
+      </chart>
+    </panel>
+    
+    <panel>
+      <title>Anomaly Distribution by Type</title>
+      <chart>
+        <search>
+          <query>
+            index=llm_logs model_id="$model_token$" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | anomalydetect fields="response_time,token_count,confidence_score" method=$detection_method$ threshold=$threshold_token$
+            | where anomaly_detected=true
+            | eval anomaly_types_split = split(anomaly_types, ",")
+            | mvexpand anomaly_types_split
+            | stats count by anomaly_types_split
+            | rename anomaly_types_split as anomaly_type
+            | sort - count
+          </query>
+        </search>
+        <option name="charting.chart">pie</option>
+        <option name="charting.legend.placement">right</option>
+      </chart>
+    </panel>
+  </row>
+  
+  <row>
+    <panel>
+      <title>Anomaly Severity Heatmap</title>
+      <chart>
+        <search>
+          <query>
+            index=llm_logs model_id="$model_token$" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | anomalydetect fields="response_time,token_count,confidence_score" method=$detection_method$ threshold=$threshold_token$
+            | where anomaly_detected=true
+            | eval hour = strftime(_time, "%H")
+            | eval day_of_week = strftime(_time, "%A")
+            | stats count by day_of_week, hour, anomaly_severity
+            | sort day_of_week, hour
+          </query>
+        </search>
+        <option name="charting.chart">column</option>
+        <option name="charting.axisTitleX.text">Hour of Day</option>
+        <option name="charting.axisTitleY.text">Anomaly Count</option>
+        <option name="charting.chart.stackMode">stacked</option>
+      </chart>
+    </panel>
+    
+    <panel>
+      <title>Anomaly Score Distribution</title>
+      <chart>
+        <search>
+          <query>
+            index=llm_logs model_id="$model_token$" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | anomalydetect fields="response_time,token_count,confidence_score" method=$detection_method$ threshold=$threshold_token$
+            | where anomaly_detected=true
+            | eval score_bucket = case(
+                max_anomaly_score < 2, "1-2",
+                max_anomaly_score < 3, "2-3",
+                max_anomaly_score < 5, "3-5",
+                max_anomaly_score < 8, "5-8",
+                1=1, "8+"
+              )
+            | stats count by score_bucket
+            | sort score_bucket
+          </query>
+        </search>
+        <option name="charting.chart">column</option>
+        <option name="charting.axisTitleX.text">Anomaly Score Range</option>
+        <option name="charting.axisTitleY.text">Count</option>
+      </chart>
+    </panel>
+  </row>
+  
+  <row>
+    <panel>
+      <title>Model-wise Anomaly Patterns</title>
+      <chart>
+        <search>
+          <query>
+            index=llm_logs earliest=$time_token.earliest$ latest=$time_token.latest$
+            | anomalydetect fields="response_time,token_count,confidence_score" method=$detection_method$ threshold=$threshold_token$
+            | where anomaly_detected=true
+            | stats count as anomaly_count,
+                    avg(max_anomaly_score) as avg_anomaly_score by model_id, anomaly_severity
+            | sort model_id, anomaly_severity
+          </query>
+        </search>
+        <option name="charting.chart">column</option>
+        <option name="charting.axisTitleX.text">Model</option>
+        <option name="charting.axisTitleY.text">Anomaly Count</option>
+        <option name="charting.chart.stackMode">stacked</option>
+      </chart>
+    </panel>
+    
+    <panel>
+      <title>Response Time vs Anomaly Score</title>
+      <chart>
+        <search>
+          <query>
+            index=llm_logs model_id="$model_token$" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | anomalydetect fields="response_time,token_count,confidence_score" method=$detection_method$ threshold=$threshold_token$
+            | where anomaly_detected=true
+            | bin response_time span=1
+            | stats avg(max_anomaly_score) as avg_anomaly_score by response_time
+            | sort response_time
+          </query>
+        </search>
+        <option name="charting.chart">scatter</option>
+        <option name="charting.axisTitleX.text">Response Time (seconds)</option>
+        <option name="charting.axisTitleY.text">Average Anomaly Score</option>
+      </chart>
+    </panel>
+  </row>
+  
+  <row>
+    <panel>
+      <title>Critical Anomalies Detail</title>
+      <table>
+        <search>
+          <query>
+            index=llm_logs model_id="$model_token$" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | anomalydetect fields="response_time,token_count,confidence_score" method=$detection_method$ threshold=$threshold_token$
+            | where anomaly_severity="critical" OR anomaly_severity="high"
+            | eval event_time = strftime(_time, "%Y-%m-%d %H:%M:%S")
+            | eval anomaly_score = round(max_anomaly_score, 2)
+            | table event_time, model_id, anomaly_severity, anomaly_score, anomaly_types, response_time, token_count, confidence_score
+            | sort - max_anomaly_score
+          </query>
+        </search>
+        <option name="drilldown">cell</option>
+        <option name="count">15</option>
+        <option name="wrap">true</option>
+      </table>
+    </panel>
+  </row>
+  
+  <row>
+    <panel>
+      <title>Anomaly Detection Statistics</title>
+      <table>
+        <search>
+          <query>
+            index=llm_logs model_id="$model_token$" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | anomalydetect fields="response_time,token_count,confidence_score" method=$detection_method$ threshold=$threshold_token$
+            | stats count as total_events,
+                    count(eval(anomaly_detected=true)) as total_anomalies,
+                    count(eval(anomaly_severity="low")) as low_severity,
+                    count(eval(anomaly_severity="medium")) as medium_severity,
+                    count(eval(anomaly_severity="high")) as high_severity,
+                    count(eval(anomaly_severity="critical")) as critical_severity,
+                    avg(max_anomaly_score) as avg_score by model_id
+            | eval anomaly_rate = round((total_anomalies / total_events) * 100, 2)."%"
+            | eval avg_score = round(avg_score, 3)
+            | sort - total_anomalies
+          </query>
+        </search>
+        <option name="drilldown">cell</option>
+        <option name="count">10</option>
+      </table>
+    </panel>
+  </row>
+</form>
