@@ -1,0 +1,26 @@
+<nav search_view="search" color="#1e93c6">
+  <view name="overview_dashboard" default='true'/>
+  <view name="semantic_drift_analysis"/>
+  <view name="model_performance_tracking"/>
+  <view name="anomaly_detection"/>
+  <view name="alert_management"/>
+  
+  <collection label="Dashboards">
+    <view name="overview_dashboard"/>
+    <view name="semantic_drift_analysis"/>
+    <view name="model_performance_tracking"/>
+    <view name="anomaly_detection"/>
+  </collection>
+  
+  <collection label="Configuration">
+    <view name="alert_management"/>
+    <a href="/manager/llm_driftguard/data/lookup-table-files">Lookup Tables</a>
+    <a href="/manager/llm_driftguard/saved/searches">Saved Searches</a>
+  </collection>
+  
+  <collection label="Search & Analysis">
+    <a href="/app/llm_driftguard/search">Search</a>
+    <a href="/app/llm_driftguard/pivot">Pivot</a>
+    <a href="/app/llm_driftguard/datasets">Datasets</a>
+  </collection>
+</nav>
