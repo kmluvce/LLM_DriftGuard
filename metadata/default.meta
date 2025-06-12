@@ -1,0 +1,89 @@
+# Default permissions for LLM DriftGuard app
+
+[views]
+access = read : [ * ], write : [ admin, power ]
+export = system
+
+[views/overview_dashboard]
+access = read : [ * ], write : [ admin, power ]
+export = system
+
+[views/semantic_drift_analysis]
+access = read : [ * ], write : [ admin, power ]
+export = system
+
+[views/model_performance_tracking]
+access = read : [ * ], write : [ admin, power ]
+export = system
+
+[views/anomaly_detection]
+access = read : [ * ], write : [ admin, power ]
+export = system
+
+[views/alert_management]
+access = read : [ admin, power ], write : [ admin ]
+export = system
+
+[savedsearches]
+access = read : [ * ], write : [ admin, power ]
+export = system
+
+[savedsearches/LLM%20Baseline%20Calculator]
+access = read : [ * ], write : [ admin ]
+export = system
+
+[savedsearches/LLM%20High%20Drift%20Alert]
+access = read : [ * ], write : [ admin ]
+export = system
+
+[savedsearches/LLM%20Performance%20Degradation%20Alert]
+access = read : [ * ], write : [ admin ]
+export = system
+
+[savedsearches/LLM%20Low%20Confidence%20Alert]
+access = read : [ * ], write : [ admin ]
+export = system
+
+[savedsearches/LLM%20Anomaly%20Detection%20Alert]
+access = read : [ * ], write : [ admin ]
+export = system
+
+[lookups]
+access = read : [ * ], write : [ admin, power ]
+export = system
+
+[lookups/model_baselines.csv]
+access = read : [ * ], write : [ admin, power ]
+export = system
+
+[lookups/semantic_categories.csv]
+access = read : [ * ], write : [ admin, power ]
+export = system
+
+[lookups/alert_thresholds.csv]
+access = read : [ * ], write : [ admin ]
+export = system
+
+[commands]
+access = read : [ * ], write : [ admin ]
+export = system
+
+[commands/driftdetect]
+access = read : [ * ], write : [ admin ]
+export = system
+
+[commands/semanticcompare]
+access = read : [ * ], write : [ admin ]
+export = system
+
+[commands/llmmetrics]
+access = read : [ * ], write : [ admin ]
+export = system
+
+[commands/anomalydetect]
+access = read : [ * ], write : [ admin ]
+export = system
+
+[commands/baselinecompare]
+access = read : [ * ], write : [ admin ]
+export = system
