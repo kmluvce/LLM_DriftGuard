@@ -1,0 +1,262 @@
+<form>
+  <label>Model Performance Tracking</label>
+  <description>Comprehensive tracking of LLM performance metrics and trends</description>
+  
+  <fieldset submitButton="true" autoRun="true">
+    <input type="time" token="time_token">
+      <label>Time Range</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+    <input type="dropdown" token="model_token">
+      <label>Model</label>
+      <choice value="*">All Models</choice>
+      <default>*</default>
+      <search>
+        <query>index=llm_logs | dedup model_id | table model_id</query>
+      </search>
+      <fieldForLabel>model_id</fieldForLabel>
+      <fieldForValue>model_id</fieldForValue>
+    </input>
+    <input type="dropdown" token="metric_focus">
+      <label>Primary Metric</label>
+      <choice value="response_time">Response Time</choice>
+      <choice value="token_count">Token Count</choice>
+      <choice value="confidence_score">Confidence Score</choice>
+      <choice value="tokens_per_second">Tokens/Second</choice>
+      <default>response_time</default>
+    </input>
+  </fieldset>
+  
+  <row>
+    <panel>
+      <title>Performance Summary</title>
+      <table>
+        <search>
+          <query>
+            index=llm_logs model_id="$model_token$" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | stats count as requests,
+                    avg(response_time) as avg_response_time,
+                    avg(token_count) as avg_tokens,
+                    avg(confidence_score) as avg_confidence,
+                    eval(avg(token_count)/avg(response_time)) as avg_tokens_per_sec,
+                    perc95(response_time) as p95_response_time,
+                    min(response_time) as min_response_time,
+                    max(response_time) as max_response_time by model_id
+            | eval avg_response_time = round(avg_response_time, 2),
+                   avg_tokens = round(avg_tokens, 0),
+                   avg_confidence = round(avg_confidence, 3),
+                   avg_tokens_per_sec = round(avg_tokens_per_sec, 1),
+                   p95_response_time = round(p95_response_time, 2)
+            | sort - requests
+          </query>
+        </search>
+        <option name="drilldown">cell</option>
+        <option name="count">10</option>
+        <option name="wrap">true</option>
+      </table>
+    </panel>
+  </row>
+  
+  <row>
+    <panel>
+      <title>Performance Trends Over Time</title>
+      <chart>
+        <search>
+          <query>
+            index=llm_logs model_id="$model_token$" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | bucket _time span=1h
+            | stats avg(response_time) as avg_response_time,
+                    avg(token_count) as avg_tokens,
+                    avg(confidence_score) as avg_confidence,
+                    eval(avg(token_count)/avg(response_time)) as tokens_per_second by _time, model_id
+            | sort _time
+          </query>
+        </search>
+        <option name="charting.chart">line</option>
+        <option name="charting.axisTitleX.text">Time</option>
+        <option name="charting.axisTitleY.text">Performance Metrics</option>
+        <option name="charting.legend.placement">bottom</option>
+        <option name="charting.chart.stackMode">default</option>
+      </chart>
+    </panel>
+    
+    <panel>
+      <title>Response Time Distribution</title>
+      <chart>
+        <search>
+          <query>
+            index=llm_logs model_id="$model_token$" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | eval response_time_bucket = case(
+                response_time <= 1, "0-1s",
+                response_time <= 2, "1-2s", 
+                response_time <= 5, "2-5s",
+                response_time <= 10, "5-10s",
+                1=1, "10s+"
+              )
+            | stats count by response_time_bucket, model_id
+            | sort response_time_bucket
+          </query>
+        </search>
+        <option name="charting.chart">column</option>
+        <option name="charting.axisTitleX.text">Response Time Range</option>
+        <option name="charting.axisTitleY.text">Number of Requests</option>
+      </chart>
+    </panel>
+  </row>
+  
+  <row>
+    <panel>
+      <title>Quality Metrics Analysis</title>
+      <chart>
+        <search>
+          <query>
+            index=llm_logs model_id="$model_token$" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | llmmetrics response_field=response time_field=response_time token_field=token_count confidence_field=confidence_score
+            | bucket _time span=1h
+            | stats avg(quality_coherence_score) as avg_coherence,
+                    avg(quality_completeness_score) as avg_completeness,
+                    avg(quality_language_quality) as avg_language_quality,
+                    avg(overall_quality_score) as avg_overall_quality by _time
+            | sort _time
+          </query>
+        </search>
+        <option name="charting.chart">area</option>
+        <option name="charting.axisTitleX.text">Time</option>
+        <option name="charting.axisTitleY.text">Quality Score</option>
+        <option name="charting.chart.stackMode">default</option>
+      </chart>
+    </panel>
+    
+    <panel>
+      <title>Baseline Comparison</title>
+      <chart>
+        <search>
+          <query>
+            index=llm_logs model_id="$model_token$" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | baselinecompare metric=$metric_focus$ baseline_file="model_baselines.csv"
+            | where baseline_comparison_status!="normal"
+            | bucket _time span=1h
+            | stats count as deviations,
+                    avg(baseline_percentage_change) as avg_deviation by _time, baseline_comparison_status
+            | sort _time
+          </query>
+        </search>
+        <option name="charting.chart">column</option>
+        <option name="charting.axisTitleX.text">Time</option>
+        <option name="charting.axisTitleY.text">Baseline Deviations</option>
+        <option name="charting.chart.stackMode">stacked</option>
+      </chart>
+    </panel>
+  </row>
+  
+  <row>
+    <panel>
+      <title>Token Usage Efficiency</title>
+      <chart>
+        <search>
+          <query>
+            index=llm_logs model_id="$model_token$" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | eval tokens_per_second = token_count / response_time
+            | eval efficiency_category = case(
+                tokens_per_second >= 100, "High (100+ tps)",
+                tokens_per_second >= 50, "Good (50-99 tps)",
+                tokens_per_second >= 20, "Fair (20-49 tps)",
+                1=1, "Poor (&lt;20 tps)"
+              )
+            | stats count by efficiency_category, model_id
+            | sort efficiency_category
+          </query>
+        </search>
+        <option name="charting.chart">pie</option>
+        <option name="charting.legend.placement">right</option>
+      </chart>
+    </panel>
+    
+    <panel>
+      <title>Error Rate Analysis</title>
+      <chart>
+        <search>
+          <query>
+            index=llm_logs model_id="$model_token$" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | eval has_error = if(isnotnull(error) OR response_time > 30 OR confidence_score < 0.1, 1, 0)
+            | bucket _time span=1h
+            | stats sum(has_error) as errors, count as total by _time, model_id
+            | eval error_rate = (errors / total) * 100
+            | sort _time
+          </query>
+        </search>
+        <option name="charting.chart">line</option>
+        <option name="charting.axisTitleX.text">Time</option>
+        <option name="charting.axisTitleY.text">Error Rate (%)</option>
+      </chart>
+    </panel>
+  </row>
+  
+  <row>
+    <panel>
+      <title>Performance Percentiles</title>
+      <chart>
+        <search>
+          <query>
+            index=llm_logs model_id="$model_token$" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | bucket _time span=1h
+            | stats perc50($metric_focus$) as p50,
+                    perc75($metric_focus$) as p75,
+                    perc90($metric_focus$) as p90,
+                    perc95($metric_focus$) as p95,
+                    perc99($metric_focus$) as p99 by _time
+            | sort _time
+          </query>
+        </search>
+        <option name="charting.chart">line</option>
+        <option name="charting.axisTitleX.text">Time</option>
+        <option name="charting.axisTitleY.text">$metric_focus$ Percentiles</option>
+        <option name="charting.legend.placement">bottom</option>
+      </chart>
+    </panel>
+    
+    <panel>
+      <title>Model Comparison</title>
+      <chart>
+        <search>
+          <query>
+            index=llm_logs earliest=$time_token.earliest$ latest=$time_token.latest$
+            | stats avg(response_time) as avg_response_time,
+                    avg(confidence_score) as avg_confidence,
+                    eval(avg(token_count)/avg(response_time)) as avg_throughput by model_id
+            | eval performance_score = (avg_confidence * 100) - (avg_response_time * 5) + (avg_throughput * 0.1)
+            | sort - performance_score
+          </query>
+        </search>
+        <option name="charting.chart">column</option>
+        <option name="charting.axisTitleX.text">Model</option>
+        <option name="charting.axisTitleY.text">Performance Score</option>
+      </chart>
+    </panel>
+  </row>
+  
+  <row>
+    <panel>
+      <title>Detailed Performance Logs</title>
+      <table>
+        <search>
+          <query>
+            index=llm_logs model_id="$model_token$" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | llmmetrics response_field=response time_field=response_time token_field=token_count
+            | eval event_time = strftime(_time, "%H:%M:%S")
+            | eval tokens_per_sec = round(token_count / response_time, 1)
+            | eval quality_score = round(overall_quality_score, 3)
+            | table event_time, model_id, response_time, token_count, tokens_per_sec, confidence_score, quality_score
+            | sort - _time
+          </query>
+        </search>
+        <option name="drilldown">cell</option>
+        <option name="count">20</option>
+        <option name="wrap">true</option>
+      </table>
+    </panel>
+  </row>
+</form>
