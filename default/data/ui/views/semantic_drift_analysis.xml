@@ -1,0 +1,203 @@
+<form>
+  <label>Semantic Drift Analysis</label>
+  <description>Deep analysis of semantic drift patterns and trends in LLM outputs</description>
+  
+  <fieldset submitButton="true" autoRun="true">
+    <input type="time" token="time_token">
+      <label>Time Range</label>
+      <default>
+        <earliest>-7d@d</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+    <input type="dropdown" token="model_token">
+      <label>Model</label>
+      <choice value="*">All Models</choice>
+      <default>*</default>
+      <search>
+        <query>index=llm_logs | dedup model_id | table model_id</query>
+      </search>
+      <fieldForLabel>model_id</fieldForLabel>
+      <fieldForValue>model_id</fieldForValue>
+    </input>
+    <input type="dropdown" token="drift_threshold">
+      <label>Drift Threshold</label>
+      <choice value="0.1">Low (0.1)</choice>
+      <choice value="0.3">Medium (0.3)</choice>
+      <choice value="0.5">High (0.5)</choice>
+      <default>0.3</default>
+    </input>
+  </fieldset>
+  
+  <row>
+    <panel>
+      <title>Drift Score Heatmap</title>
+      <viz type="heatmap_app.heatmap">
+        <search>
+          <query>
+            index=llm_logs model_id="$model_token$" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | bucket _time span=1h
+            | eval hour = strftime(_time, "%H")
+            | eval day = strftime(_time, "%A")
+            | driftdetect field=response baseline_file="model_baselines.csv"
+            | stats avg(drift_score) as avg_drift by day, hour
+            | eval avg_drift = round(avg_drift, 3)
+          </query>
+        </search>
+        <option name="heatmap_app.heatmap.colorMode">sequential</option>
+        <option name="heatmap_app.heatmap.minColor">#FFFFFF</option>
+        <option name="heatmap_app.heatmap.maxColor">#FF0000</option>
+      </viz>
+    </panel>
+    
+    <panel>
+      <title>Drift Distribution</title>
+      <chart>
+        <search>
+          <query>
+            index=llm_logs model_id="$model_token$" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | driftdetect field=response baseline_file="model_baselines.csv"
+            | eval drift_category = case(
+                drift_score < 0.1, "Minimal (0-0.1)",
+                drift_score < 0.3, "Low (0.1-0.3)",
+                drift_score < 0.5, "Medium (0.3-0.5)",
+                drift_score < 0.7, "High (0.5-0.7)",
+                1=1, "Critical (0.7+)"
+              )
+            | stats count by drift_category
+            | sort drift_category
+          </query>
+        </search>
+        <option name="charting.chart">pie</option>
+        <option name="charting.legend.placement">right</option>
+      </chart>
+    </panel>
+  </row>
+  
+  <row>
+    <panel>
+      <title>Semantic Drift Trend Analysis</title>
+      <chart>
+        <search>
+          <query>
+            index=llm_logs model_id="$model_token$" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | bucket _time span=1h
+            | driftdetect field=response baseline_file="model_baselines.csv"
+            | stats avg(drift_score) as avg_drift, 
+                    max(drift_score) as max_drift,
+                    min(drift_score) as min_drift,
+                    stdev(drift_score) as stdev_drift by _time
+            | sort _time
+          </query>
+        </search>
+        <option name="charting.chart">line</option>
+        <option name="charting.axisTitleX.text">Time</option>
+        <option name="charting.axisTitleY.text">Drift Score</option>
+        <option name="charting.legend.placement">bottom</option>
+        <option name="charting.chart.nullValueMode">connect</option>
+      </chart>
+    </panel>
+  </row>
+  
+  <row>
+    <panel>
+      <title>Semantic Category Drift</title>
+      <chart>
+        <search>
+          <query>
+            index=llm_logs model_id="$model_token$" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | lookup semantic_categories.csv prompt_type OUTPUT category
+            | driftdetect field=response baseline_file="model_baselines.csv"
+            | stats avg(drift_score) as avg_drift by category
+            | sort - avg_drift
+          </query>
+        </search>
+        <option name="charting.chart">column</option>
+        <option name="charting.axisTitleX.text">Semantic Category</option>
+        <option name="charting.axisTitleY.text">Average Drift Score</option>
+      </chart>
+    </panel>
+    
+    <panel>
+      <title>Drift Correlation with Performance</title>
+      <chart>
+        <search>
+          <query>
+            index=llm_logs model_id="$model_token$" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | driftdetect field=response baseline_file="model_baselines.csv"
+            | bin drift_score span=0.1
+            | stats avg(response_time) as avg_response_time,
+                    avg(confidence_score) as avg_confidence by drift_score
+            | eval response_time_normalized = avg_response_time / 10
+            | fields drift_score, response_time_normalized, avg_confidence
+          </query>
+        </search>
+        <option name="charting.chart">scatter</option>
+        <option name="charting.axisTitleX.text">Drift Score</option>
+        <option name="charting.axisTitleY.text">Normalized Performance Metrics</option>
+      </chart>
+    </panel>
+  </row>
+  
+  <row>
+    <panel>
+      <title>High Drift Events</title>
+      <table>
+        <search>
+          <query>
+            index=llm_logs model_id="$model_token$" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | driftdetect field=response baseline_file="model_baselines.csv"
+            | where drift_score > $drift_threshold$
+            | eval event_time = strftime(_time, "%Y-%m-%d %H:%M:%S")
+            | eval response_preview = substr(response, 1, 100)."..."
+            | table event_time, model_id, drift_score, confidence_score, response_time, response_preview
+            | sort - drift_score
+          </query>
+        </search>
+        <option name="drilldown">cell</option>
+        <option name="count">20</option>
+        <option name="wrap">true</option>
+      </table>
+    </panel>
+  </row>
+  
+  <row>
+    <panel>
+      <title>Semantic Similarity Matrix</title>
+      <table>
+        <search>
+          <query>
+            index=llm_logs model_id="$model_token$" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | head 100
+            | semanticcompare field1=prompt field2=response method=cosine
+            | stats avg(similarity_score) as avg_similarity,
+                    count as sample_count by model_id
+            | eval avg_similarity = round(avg_similarity, 3)
+            | sort - avg_similarity
+          </query>
+        </search>
+        <option name="drilldown">cell</option>
+        <option name="count">10</option>
+      </table>
+    </panel>
+    
+    <panel>
+      <title>Response Length vs Drift</title>
+      <chart>
+        <search>
+          <query>
+            index=llm_logs model_id="$model_token$" earliest=$time_token.earliest$ latest=$time_token.latest$
+            | eval response_length = len(response)
+            | bin response_length span=100
+            | driftdetect field=response baseline_file="model_baselines.csv"
+            | stats avg(drift_score) as avg_drift by response_length
+            | sort response_length
+          </query>
+        </search>
+        <option name="charting.chart">line</option>
+        <option name="charting.axisTitleX.text">Response Length (characters)</option>
+        <option name="charting.axisTitleY.text">Average Drift Score</option>
+      </chart>
+    </panel>
+  </row>
+</form>
