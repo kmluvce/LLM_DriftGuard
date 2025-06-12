@@ -1,0 +1,11 @@
+metric_name,threshold_type,warning_threshold,critical_threshold,unit,description
+drift_score,upper,0.3,0.5,score,"Semantic drift detection threshold"
+response_time,upper,5.0,10.0,seconds,"Maximum acceptable response time"
+confidence_score,lower,0.6,0.3,score,"Minimum acceptable confidence level"
+token_count,upper,500,1000,tokens,"Maximum token usage per response"
+error_rate,upper,0.05,0.1,percentage,"Maximum error rate threshold"
+tokens_per_second,lower,20,10,rate,"Minimum processing speed"
+coherence_score,lower,0.7,0.5,score,"Minimum text coherence requirement"
+completeness_score,lower,0.6,0.4,score,"Minimum response completeness"
+language_quality,lower,0.7,0.5,score,"Minimum language quality score"
+anomaly_zscore,upper,2.0,3.0,zscore,"Statistical anomaly detection threshold"
